@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>The White Silence 3D</title>
+<meta name="description" content="The White Silence: free 3D open-world winter survival game in your browser. Explore a huge frozen map, fly a plane or helicopter, drive a camper, build a shed, hunt, craft and survive. Mobile and WebXR VR support.">
+<meta name="keywords" content="winter survival game, browser game, WebXR VR game, open world survival, helicopter, plane, camper, three.js">
+<meta property="og:title" content="The White Silence: Winter Survival (3D + VR)"><meta property="og:description" content="Survive a frozen wilderness in 3D or VR. Free in your browser."><meta property="og:type" content="website">
+<meta name="robots" content="index,follow,max-image-preview:large"><meta name="theme-color" content="#0e1620"><meta name="twitter:card" content="summary"><meta name="twitter:title" content="The White Silence: Free 3D and VR Winter Survival Game"><meta name="twitter:description" content="Play free in your browser: survive a frozen open world, hunt, build, drive a camper, fly a plane or helicopter. Mobile and WebXR VR.">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"VideoGame","name":"The White Silence","genre":"Survival","gamePlatform":"Web browser, WebXR","description":"Open-world winter survival game with vehicles, building and VR support."}</script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<style>
+:root{--bg:#0e1620;--fg:#e8f0f7;--pn:rgba(10,18,28,.78)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#0e1620;--fg:#e8f0f7;--pn:rgba(10,18,28,.78)}}
+*{-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;box-sizing:border-box;-webkit-user-select:none;user-select:none;touch-action:none}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:system-ui,sans-serif;overflow:hidden}
+canvas{display:block}
+#hud{position:fixed;top:env(safe-area-inset-top,0px);left:0;right:0;padding:8px;display:flex;gap:6px;pointer-events:none}
+.b{flex:1;background:var(--pn);border-radius:6px;padding:3px 6px;font-size:11px}
+.b i{display:block;height:6px;border-radius:3px;margin-top:2px}
+#inv{position:fixed;top:calc(env(safe-area-inset-top,0px) + 62px);left:8px;font-size:12px;background:var(--pn);padding:4px 8px;border-radius:6px;pointer-events:none}
+#msg{position:fixed;top:calc(env(safe-area-inset-top,0px) + 100px);left:0;right:0;text-align:center;font-size:14px;pointer-events:none;text-shadow:0 1px 3px #000}
+#cross{position:fixed;left:50%;top:50%;width:6px;height:6px;margin:-3px;border-radius:50%;background:#fff8;pointer-events:none}
+#btns{z-index:5;position:fixed;right:10px;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);display:grid;grid-template-columns:repeat(2,64px);gap:8px}
+#btns button{height:52px;border-radius:12px;background:var(--pn);color:var(--fg);font-size:12px;font-weight:600;border:1px solid #5d7a94}
+#btns button:active{background:#3b5a78}
+#ov{z-index:10;position:fixed;inset:0;background:rgba(5,10,16,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px}
+#ov h1{margin:0 0 8px;font-weight:300;letter-spacing:4px}
+#ov p{max-width:420px;font-size:14px;line-height:1.5;opacity:.85}
+#ov button{margin-top:16px;padding:12px 32px;font-size:16px;border-radius:24px;border:0;background:#cfe3f5;color:#0e1620;font-weight:600}
+</style></head><body>
+<main style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap"><h1>The White Silence: Free 3D and VR Winter Survival Game</h1><p>The White Silence is a free open-world winter survival game that runs in your web browser on phones, tablets and computers, with WebXR VR support for headsets such as Meta Quest.</p><h2>Features</h2><ul><li>Huge frozen open world with abandoned houses, a gas station, mining town, research station, military depot, frozen lake and highway</li><li>Survival stats: health, hunger, thirst and body warmth, with blizzards and a day and night cycle</li><li>Hunt deer, rabbits and wolves, build campfires, and construct a shed log by log</li><li>Drive a truck or camper, fly a plane or helicopter</li><li>Meet survivors, trade supplies and explore with a minimap</li><li>VR controls: swing to chop, rub hands to light a fire, grab the steering wheel</li></ul></main>
+<noscript>The White Silence is a free 3D and VR winter survival browser game. Please enable JavaScript to play.</noscript>
+<div id="hud"></div><div id="inv"></div><div id="msg"></div><div id="cross"></div>
+<div id="btns"><button id="bAct">ACT</button><button id="bFire">FIRE</button><button id="bEat">EAT</button><button id="bDrink">DRINK</button><button id="bCar" style="grid-column:span 2">VEHICLE</button></div>
+<div id="ov"><h1>THE WHITE SILENCE</h1><p>The plane is down. Civilization is gone. Only winter remains.<br><br><b>Move:</b> left thumb. <b>Look:</b> drag right side. <b>ACT:</b> chop trees, hunt, grab fuel cans, refuel truck. <b>FIRE:</b> 2 wood. <b>EAT/DRINK:</b> near a fire to cook and melt snow. <b>VEHICLE:</b> enter/exit the truck (up/down = drive, left/right = steer). In a car, keep the fire lit and the heater on.</p><button id="go">Begin</button></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const WS=600,R=(a,b)=>a+Math.random()*(b-a),$=id=>document.getElementById(id);
+const sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(70,1,.1,300);
+const rd=new THREE.WebGLRenderer({antialias:true});document.body.prepend(rd.domElement);
+function rs(){rd.setSize(innerWidth,innerHeight);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix()}rs();addEventListener('resize',rs);
+sc.add(new THREE.HemisphereLight(0xdde8ff,0x889bb0,.9));const sun=new THREE.DirectionalLight(0xffffff,.6);sun.position.set(50,80,30);sc.add(sun);
+const gnd=new THREE.Mesh(new THREE.PlaneGeometry(WS*2,WS*2),new THREE.MeshLambertMaterial({color:0xf2f7fb}));gnd.rotation.x=-Math.PI/2;sc.add(gnd);
+const M=(c)=>new THREE.MeshLambertMaterial({color:c}),B=(w,h,d,c)=>new THREE.Mesh(new THREE.BoxGeometry(w,h,d),M(c));
+const trunkG=new THREE.CylinderGeometry(.25,.35,2,6),coneG=new THREE.ConeGeometry(1.7,5.5,7),snG=new THREE.ConeGeometry(1,2,7);
+const trM=M(0x4a3320),leM=M(0x1f4d36),snM=M(0xf4f8fc);
+let S,P,cabin=new THREE.Group(),car=new THREE.Group(),best=0;
+// cabin
+{const f=B(10,.3,8,0x6b4a2f);f.position.y=.15;cabin.add(f);
+ [[0,2.5,-3.9,10,5,.3],[-4.9,2.5,0,.3,5,8],[4.9,2.5,0,.3,5,8]].forEach(a=>{const w=B(a[3],a[4],a[5],0x8a6a4a);w.position.set(a[0],a[1],a[2]);cabin.add(w)});
+ const r=B(11,.4,9,0xe8f0f7);r.position.y=5.2;cabin.add(r);sc.add(cabin)}
+// car
+{const b=B(2.2,1,4.4,0x2e6da4);b.position.y=.9;const c=B(2,.9,2,0x2e6da4);c.position.set(0,1.8,-.3);const wi=B(1.8,.6,.1,0xa8d0f0);wi.position.set(0,1.8,.72);
+ car.add(b,c,wi);[[-1.1,1.6],[1.1,1.6],[-1.1,-1.6],[1.1,-1.6]].forEach(a=>{const w=B(.3,.8,.8,0x222222);w.position.set(a[0],.4,a[1]);car.add(w)});
+ const hl=new THREE.SpotLight(0xffeebb,0,40,.6);hl.position.set(0,1,2.2);hl.target.position.set(0,0,12);car.add(hl,hl.target);car.hl=hl;sc.add(car)}
+const fireMs=[],cans=[],trees=[],deer=[],wolves=[],pts=[];
+function mkTree(x,z){const g=new THREE.Group();const t=new THREE.Mesh(trunkG,trM);t.position.y=1;const c=new THREE.Mesh(coneG,leM);c.position.y=4.5;const s=new THREE.Mesh(snG,snM);s.position.y=6;g.add(t,c,s);g.position.set(x,0,z);g.w=3;sc.add(g);return g}
+function mkDeer(x,z,rb){const g=new THREE.Group(),k=rb?.4:1;const b=B(.6*k,.7*k,1.4*k,rb?0xe0dccf:0x8b5a2b);b.position.y=.9*k;const h=B(.35*k,.35*k,.4*k,rb?0xe0dccf:0x6e4520);h.position.set(0,1.4*k,.8*k);g.add(b,h);if(!rb)[[-.2,.5],[.2,.5],[-.2,-.5],[.2,-.5]].forEach(a=>{const l=B(.12,.7,.12,0x4a3018);l.position.set(a[0],.35,a[1]);g.add(l)});g.position.set(x,0,z);g.hp=rb?1:3;g.rb=rb;g.v=new THREE.Vector3();g.mt=0;sc.add(g);return g}
+function mkWolf(x,z){const g=new THREE.Group();const b=B(.5,.6,1.3,0x555a60),h=B(.35,.35,.4,0x444);b.position.y=.8;h.position.set(0,1,.8);const e=B(.3,.08,.05,0xff3333);e.position.set(0,1.05,1.02);g.add(b,h,e);[[-.2,.4],[.2,.4],[-.2,-.4],[.2,-.4]].forEach(a=>{const l=B(.1,.55,.1,0x333);l.position.set(a[0],.28,a[1]);g.add(l)});g.position.set(x,0,z);g.hp=5;g.cd=0;sc.add(g);return g}
+function mkFire(x,z,fuel){const g=new THREE.Group();const l=B(1,.3,1,0x3a2a1a);l.position.y=.15;const f=new THREE.Mesh(new THREE.ConeGeometry(.35,1,6),new THREE.MeshBasicMaterial({color:0xffa030}));f.position.y=.8;const pl=new THREE.PointLight(0xff8a30,1.5,22);pl.position.y=1.2;g.add(l,f,pl);g.position.set(x,0,z);g.fuel=fuel;g.f=f;g.pl=pl;sc.add(g);return g}
+function mkCan(x,z){const g=B(.4,.6,.25,0xc0392b);g.position.set(x,.3,z);sc.add(g);return g}
+// ---- realism upgrade ----
+rd.shadowMap.enabled=true;rd.shadowMap.type=THREE.PCFSoftShadowMap;rd.outputEncoding=THREE.sRGBEncoding;rd.toneMapping=THREE.ACESFilmicToneMapping;rd.toneMappingExposure=1.1;rd.setPixelRatio(Math.min(devicePixelRatio,2));
+sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);Object.assign(sun.shadow.camera,{left:-45,right:45,top:45,bottom:-45,near:1,far:220});sun.shadow.bias=-.0006;sc.add(sun.target);
+{const _r=rd.render.bind(rd);rd.render=(s,c)=>{sun.position.set(c.position.x+45,c.position.y+80,c.position.z+30);sun.target.position.set(c.position.x,0,c.position.z);sun.target.updateMatrixWorld();_r(s,c)}}
+const S3=(c,x={})=>new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.95,flatShading:true},x));
+const sh=m=>{m.castShadow=true;m.receiveShadow=true;return m};
+const cyl=(r1,r2,h,c,sg=8)=>sh(new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,h,sg),S3(c)));
+const bx=(w,h,d,c,x)=>sh(new THREE.Mesh(new THREE.BoxGeometry(w,h,d),S3(c,x)));
+const sph=(r,c,sx=1,sy=1,sz=1)=>{const m=sh(new THREE.Mesh(new THREE.SphereGeometry(r,10,8),S3(c)));m.scale.set(sx,sy,sz);return m};
+const at=(m,x,y,z,rx=0,ry=0,rz=0)=>{m.position.set(x,y,z);m.rotation.set(rx,ry,rz);return m};
+{const cn=document.createElement('canvas');cn.width=cn.height=256;const cx=cn.getContext('2d');cx.fillStyle='#eef4f9';cx.fillRect(0,0,256,256);
+for(let i=0;i<2800;i++){cx.fillStyle='rgba('+(Math.random()<.5?'255,255,255':'165,192,220')+','+R(.08,.3)+')';cx.fillRect(R(0,256),R(0,256),R(1,3),R(1,2))}
+const tx=new THREE.CanvasTexture(cn);tx.wrapS=tx.wrapT=THREE.RepeatWrapping;tx.repeat.set(300,300);tx.anisotropy=4;gnd.material=new THREE.MeshStandardMaterial({map:tx,roughness:1});gnd.receiveShadow=true}
+function proto(k){const geo=new THREE.Geometry();const part=(bg,y,base,sn)=>{const g=new THREE.Geometry().fromBufferGeometry(bg);g.translate(0,y,0);let lo=1e9,hi=-1e9;g.vertices.forEach(v=>{lo=Math.min(lo,v.y);hi=Math.max(hi,v.y)});
+g.faces.forEach(f=>{f.vertexColors=[f.a,f.b,f.c].map(i=>{const t=(g.vertices[i].y-lo)/(hi-lo);return new THREE.Color(base).lerp(new THREE.Color(0xf4f8fc),sn?Math.max(0,Math.min(1,(t-.2)*1.5)):0)})});geo.merge(g)};
+part(new THREE.CylinderGeometry(.22,.4,2.4,7),1.2,0x4a3321,0);const n=4+(k%2);for(let i=0;i<n;i++){part(new THREE.ConeGeometry(2.2-i*(1.6/n),2.3,8+k),1.7+i*1.15,i%2?0x1f4f38:0x275f42,1)}
+return new THREE.BufferGeometry().fromGeometry(geo)}
+const protos=[0,1,2].map(proto),treeMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.95,flatShading:true});
+function mkTree(x,z){const g=new THREE.Mesh(protos[(Math.random()*3)|0],treeMat);const s=R(.8,1.4);g.scale.set(s,s*R(.9,1.15),s);g.rotation.y=R(0,6.3);g.position.set(x,0,z);g.castShadow=true;g.w=3;sc.add(g);return g}
+function mkDeer(x,z,rb){const g=new THREE.Group(),fur=rb?0xe6e2d8:0x8d6238,dk=rb?0xcfc9bb:0x5e3d1e;
+if(rb){g.add(at(sph(.28,fur,1,.8,1.5),0,.3,0),at(sph(.17,fur),0,.42,.4),at(cyl(.03,.03,.3,fur,5),-.06,.64,.42),at(cyl(.03,.03,.3,fur,5),.06,.64,.42),at(sph(.09,0xffffff),0,.34,-.42))}
+else{g.add(at(sph(.5,fur,.9,.85,1.7),0,1.3,0),at(sph(.4,fur,.9,.9,1),0,1.35,.55),at(cyl(.13,.2,.95,fur),0,1.75,.8,.6),at(sph(.2,dk,.8,.8,1.35),0,2.15,1.15),at(sph(.09,0x222222),0,2.1,1.45),at(sph(.14,0xffffff,.7,1,.7),0,1.55,-.85));
+[-1,1].forEach(s=>{g.add(at(cyl(.015,.06,.28,dk,5),s*.17,2.4,1.05,0,0,-s*.5));[.65,-.65].forEach(z=>g.add(at(cyl(.06,.09,1.05,dk,6),s*.24,.52,z)))});
+if(Math.random()<.5)[-1,1].forEach(s=>{g.add(at(cyl(.025,.04,.8,0xd8c9a8,5),s*.22,2.75,1,.2,0,-s*.5));g.add(at(cyl(.02,.03,.45,0xd8c9a8,5),s*.4,3.0,1.1,.5,0,-s*.2))})}
+g.position.set(x,0,z);g.hp=rb?1:3;g.rb=rb;g.v=new THREE.Vector3();g.mt=0;sc.add(g);return g}
+function mkWolf(x,z){const g=new THREE.Group(),f=0x6d7077,d=0x3e4146;
+g.add(at(sph(.34,f,.9,.95,1.9),0,.85,0),at(sph(.32,d,1,1,1),0,.9,.5),at(cyl(.12,.2,.5,f),0,1,.8,.8),at(sph(.2,f,.9,.9,1.2),0,1.1,1.05),at(cyl(.05,.11,.38,d,6),0,1.02,1.4,Math.PI/2),at(sph(.04,0x111111),0,1.05,1.6),at(cyl(.1,.03,.7,f,6),0,.85,-.95,-.9),
+at(cyl(0,.07,.2,d,4),-.1,1.35,.95),at(cyl(0,.07,.2,d,4),.1,1.35,.95),at(new THREE.Mesh(new THREE.SphereGeometry(.035,6,6),new THREE.MeshBasicMaterial({color:0xff3a2a})),-.09,1.17,1.22),at(new THREE.Mesh(new THREE.SphereGeometry(.035,6,6),new THREE.MeshBasicMaterial({color:0xff3a2a})),.09,1.17,1.22));
+[-1,1].forEach(s=>[.5,-.5].forEach(z=>g.add(at(cyl(.06,.08,.7,d,6),s*.2,.35,z))));
+g.position.set(x,0,z);g.hp=5;g.cd=0;sc.add(g);return g}
+function mkFire(x,z,fuel){const g=new THREE.Group();for(let i=0;i<3;i++)g.add(at(cyl(.1,.1,1.2,0x3a2616,6),0,.2,0,Math.PI/2.4,i*1.05,0));
+for(let i=0;i<9;i++){const a=i*.7;g.add(at(sph(.2,0x8a8d90,1,.7,1),Math.cos(a)*.8,.12,Math.sin(a)*.8))}
+const f=new THREE.Group();[[.4,1.1,0xff4a10],[.3,.85,0xff8a1f],[.18,.6,0xffd060]].forEach(a=>{const c=new THREE.Mesh(new THREE.ConeGeometry(a[0],a[1],7),new THREE.MeshBasicMaterial({color:a[2]}));c.position.y=a[1]/2+.2;f.add(c)});
+const pl=new THREE.PointLight(0xff8a30,1.5,22);pl.position.y=1.2;g.add(f,pl);g.position.set(x,0,z);g.fuel=fuel;g.f=f;g.pl=pl;sc.add(g);return g}
+function mkCan(x,z){const g=new THREE.Group();g.add(at(bx(.42,.58,.2,0xb3281c,{roughness:.5}),0,.3,0),at(cyl(.04,.04,.12,0x222222,6),.12,.64,0),at(bx(.2,.05,.06,0x222222),-.05,.62,0));g.position.set(x,0,z);g.rotation.y=R(0,6);sc.add(g);return g}
+// rebuild cabin
+while(cabin.children.length)cabin.remove(cabin.children[0]);
+{const lg=0x7a5230,lg2=0x6a4527;cabin.add(at(bx(10.4,.3,8.4,0x5a4028),0,.15,0));
+for(let i=0;i<10;i++){const y=.4+i*.45,c=i%2?lg:lg2;cabin.add(at(cyl(.24,.24,10.4,c,8),0,y,-4,0,0,Math.PI/2));[-1,1].forEach(s=>cabin.add(at(cyl(.24,.24,8.4,c,8),s*5,y,0,Math.PI/2,0,0)))}
+cabin.add(at(bx(.4,4.8,.4,0x4a3018),-5,2.4,4),at(bx(.4,4.8,.4,0x4a3018),5,2.4,4));
+[-1,1].forEach(s=>{cabin.add(at(bx(6.4,.35,9.2,0x4a3018),s*2.9,5.6,0,0,0,s*.4));cabin.add(at(bx(6.5,.3,9.4,0xf4f8fc,{roughness:1}),s*2.9+s*-.03,5.82,0,0,0,s*.4))});
+cabin.add(at(bx(1,2.4,1,0x6e6e72),3.2,6.4,-2),at(bx(1.2,.25,1.2,0xf4f8fc),3.2,7.7,-2),at(bx(1.1,1.2,.08,0xffd27a,{emissive:0xffb347,emissiveIntensity:.9}),2.5,2.5,-3.75));
+const il=new THREE.PointLight(0xffb060,.9,14);il.position.set(0,3,0);cabin.add(il)}
+// rebuild truck
+{const hl=car.hl;while(car.children.length)car.remove(car.children[0]);const pc=0x2e5a7d,mt={roughness:.45,metalness:.35},gl={roughness:.1,metalness:.6};
+car.add(at(bx(2.1,.8,4.8,pc,mt),0,.95,0),at(bx(2,.6,1.6,pc,mt),0,1.45,1.5),at(bx(1.95,1,1.9,pc,mt),0,1.8,-.1),
+at(bx(1.9,.7,.08,0x1b2a38,gl),0,1.95,.88),at(bx(2,.7,1.4,0x1b2a38,gl),0,1.95,-.1),at(bx(1.9,.12,1.9,0xf4f8fc,{roughness:1}),0,2.34,-.1),at(bx(2,.08,1.5,0xf4f8fc,{roughness:1}),0,1.78,1.5),
+at(bx(2.2,.35,.35,0x222222),0,.7,2.45),at(bx(2.2,.35,.35,0x222222),0,.7,-2.45),at(bx(.9,.35,.05,0x1d1d1d),0,1.2,2.28),
+at(bx(.1,.5,1.8,pc,mt),-1.03,1.4,-1.7),at(bx(.1,.5,1.8,pc,mt),1.03,1.4,-1.7),at(bx(2,.5,.1,pc,mt),0,1.4,-2.55));
+[-1,1].forEach(s=>{car.add(at(sph(.17,0xfff2c0,1,1,.6),s*.7,1.3,2.34),at(sph(.1,0xcc2222,1,1,.6),s*.8,1.15,-2.4));[1.55,-1.55].forEach(z=>{car.add(at(cyl(.5,.5,.38,0x151515,12),s*1.05,.5,z,0,0,Math.PI/2),at(cyl(.25,.25,.4,0x9a9ea3,8),s*1.05,.5,z,0,0,Math.PI/2))})});
+const hm=new THREE.MeshBasicMaterial({color:0xfff2c0});car.add(hl,hl.target)}
+const _g=sc.getObjectByProperty('type','Mesh');
+// ---- new locations ----
+const crates=[],LB=(x,y,z,w,h,d,c)=>{const m=bx(w,h,d,c);m.position.set(x,y,z);sc.add(m);return m},LC=(x,y,z,r,h,c,rx,rz)=>{const m=cyl(r,r,h,c,10);m.position.set(x,y,z);m.rotation.set(rx||0,0,rz||0);sc.add(m);return m};
+const LOCS=[{n:'Abandoned Gas Station',x:90,z:45,r:18},{n:'Hunting Cabin',x:-120,z:90,r:16,zr:5},{n:'Frozen Lake',x:-60,z:-130,r:34,ice:1},{n:'Airport Crash Site',x:150,z:120,r:22},{n:'Old Railway Station',x:-150,z:-100,r:20},{n:'Abandoned Mining Town',x:-200,z:200,r:28},{n:'Mountain Research Station',x:0,z:-220,r:22,zr:6},{n:'Military Supply Depot',x:140,z:-150,r:24},{n:'Frozen Highway',x:-60,z:60,r:12}];
+function inLoc(x,z){return LOCS.some(l=>l.n!='Frozen Highway'&&Math.hypot(x-l.x,z-l.z)<l.r+6)||Math.abs(z-60)<7}
+const SNW=0xf4f8fc;
+{ // gas station
+ LB(90,2,38,8,4,6,0xcfd3d6);LB(90,4.2,38,8.6,.4,6.6,SNW);LB(90,4.6,50,12,.4,6,SNW);LC(85,2.2,50,.25,4.4,0x888888);LC(95,2.2,50,.25,4.4,0x888888);LB(87,.9,50,.8,1.8,.8,0xb3281c);LB(93,.9,50,.8,1.8,.8,0xb3281c);
+ // hunting cabin (3 walls + roof)
+ LB(-120,1.5,87.5,6,3,.3,0x7a5230);LB(-123,1.5,90,.3,3,5,0x7a5230);LB(-117,1.5,90,.3,3,5,0x7a5230);LB(-120,3.3,90,7,.4,6,SNW);LB(-120,.1,90,6,.2,5,0x5a4028);
+ // frozen lake + ice hut
+ LC(-60,.05,-130,34,.1,0xbfe4f2);LB(-36,1.2,-130,3,2.4,3,0x6a4527);LB(-36,2.6,-130,3.4,.3,3.4,SNW);
+ // crash site
+ LC(150,1.8,120,1.7,14,0xcfd2d6,0,Math.PI/2);LB(142,3.4,120,2,3,.3,0xcfd2d6);LB(150,1.2,128,4,.2,12,0xb8bcc0);LB(150,1.2,112,4,.2,12,0xb8bcc0);
+ for(let i=0;i<8;i++)LB(150+R(-12,12),.3,120+R(-10,10),R(.5,2),.4,R(.5,2),0x555a60);
+ // railway station
+ LB(-150,.25,-92,16,.5,5,0x8a8d90);LB(-152,2.5,-95,8,4,4,0x9a4a3a);LB(-152,4.7,-95,8.6,.4,4.6,SNW);LB(-150,.1,-86,40,.15,.2,0x333333);LB(-150,.1,-84.6,40,.15,.2,0x333333);LB(-135,1.9,-85.3,14,3.2,2.6,0x3a4a6a);
+ // mining town
+ [[-210,200],[-195,190],[-185,205],[-205,215],[-190,222]].forEach((a,i)=>{LB(a[0],1.5,a[1],4,3,4,[0x6a4a30,0x7a6a5a,0x5a4a3a][i%3]);LB(a[0],3.2,a[1],4.6,.4,4.6,SNW)});
+ LB(-200,2,228,.4,4,.4,0x4a3018);LB(-196,2,228,.4,4,.4,0x4a3018);LB(-198,4.1,228,5,.4,.4,0x4a3018);LB(-198,2,228.4,3.6,3.6,.1,0x050505);
+ // research station
+ LB(0,3,-220,12,6,8,0xe8edf2);LB(0,6.2,-220,12.6,.4,8.6,SNW);LC(7,6,-220,.15,12,0x777777);LC(-5,7.5,-220,.15,3,0x777777);LB(-5,9,-220,3,.3,3,0xaaaabb);LB(-7,1,-212,3,.1,2,0x2a3a6a);
+ // military depot
+ [[130,-160],[145,-165],[150,-145]].forEach(a=>{LB(a[0],1.6,a[1],6,3.2,4,0x4b5a3a);LB(a[0],3.4,a[1],6.4,.4,4.4,SNW)});
+ for(let i=0;i<14;i++)LB(120+i*2.6,1,-135,.2,2,.2,0x666666);
+ // frozen highway
+ LB(0,.04,60,600,.05,8,0x3a3f45);for(let x=-290;x<290;x+=10)LB(x,.07,60,4,.02,.2,0xe8c84a);
+ for(let i=0;i<6;i++){const x=-250+i*90+R(-20,20),z=60+R(-2.4,2.4),c=[0x8a2a2a,0x2a5a8a,0x8a8a2a][i%3];LB(x,.9,z,4.2,1.1,1.9,c);LB(x,1.8,z,2,.8,1.7,c);LB(x,2.3,z,2.1,.1,1.8,SNW)}}
+function crate(k,x,z){const c=LB(x,.4,z,.8,.8,.8,{food:0x4a6b3a,wood:0x9a7a4a,med:0xe8e8e8,fuel:0xb3281c}[k]);c.kind=k;crates.push(c)}
+function spawnLoot(){LOCS.forEach(l=>l.seen=false);
+ cans.push(mkCan(88,52),mkCan(92,52),mkCan(90,34));crate('med',93,40);
+ crate('wood',-120,89);crate('wood',-118,91);crate('food',-122,91);
+ crate('food',-34,-128);crate('food',-34,-132);
+ crate('food',146,122);crate('food',154,118);crate('med',150,124);cans.push(mkCan(143,116));
+ crate('wood',-146,-90);crate('wood',-148,-88);cans.push(mkCan(-138,-82));crate('med',-155,-92);
+ crate('food',-200,205);crate('wood',-190,195);crate('med',-196,226);wolves.push(mkWolf(-190,215),mkWolf(-210,190));
+ crate('med',4,-214);crate('med',-3,-214);crate('food',5,-226);
+ crate('fuel',130,-156);crate('fuel',146,-160);crate('food',150,-150);crate('med',144,-168);crate('food',152,-140);wolves.push(mkWolf(135,-150),mkWolf(148,-155),mkWolf(125,-145));
+ cans.push(mkCan(-155,57),mkCan(-70,63),mkCan(25,57));crate('food',65,58)}
+const _u3=upd;upd=function(dt){_u3(dt);if(!P||!S||S.over)return;
+ for(const l of LOCS){const d=Math.hypot(P.x-l.x,P.z-l.z);if(!l.seen&&d<l.r){l.seen=true;say('Discovered: '+l.n)}
+  if(l.zr&&d<l.zr&&!P.inCar)P.warm=Math.min(100,P.warm+1.4*dt);if(l.ice&&d<l.r*.95&&!P.inCar)P.warm=Math.max(0,P.warm-.9*dt)}};
+const _h2=hud;hud=function(){_h2();if(!S)return;let b=null,bd=1e9;for(const l of LOCS)if(l.seen){const d=Math.hypot(P.x-l.x,P.z-l.z);if(d<bd){bd=d;b=l}}
+ if(b)$('inv').innerHTML+='<br>'+b.n+' \u00b7 '+Math.round(bd)+'m'};
+// ---- animals v2: legs, fur tones, walk cycle ----
+const leg=(g,x,y,z,len,r,c,ph)=>{const p=new THREE.Group();p.position.set(x,y,z);const m=cyl(r*.7,r,len,c,6);m.position.y=-len/2;p.add(m);p.ph=ph;g.add(p);g.legs.push(p)};
+function mkDeer(x,z,rb){const g=new THREE.Group();g.legs=[];const tn=R(0,1),fur=rb?0xe6e2d8:new THREE.Color().setHSL(.07,.45,.27+tn*.1).getHex(),dk=rb?0xcfc9bb:0x4e3319,bl=0xe9dcc2;
+if(rb){g.add(at(sph(.28,fur,1,.8,1.5),0,.3,0),at(sph(.17,fur),0,.42,.4),at(cyl(.03,.03,.3,fur,5),-.06,.64,.42),at(cyl(.03,.03,.3,fur,5),.06,.64,.42),at(sph(.09,0xffffff),0,.34,-.42),at(sph(.02,0x111111),-.07,.46,.55),at(sph(.02,0x111111),.07,.46,.55));leg(g,-.12,.25,.3,.25,.05,fur,0);leg(g,.12,.25,-.2,.25,.05,fur,3)}
+else{g.add(at(sph(.5,fur,.9,.85,1.7),0,1.3,0),at(sph(.43,bl,.8,.55,1.5),0,1.05,0),at(sph(.4,fur,.9,.9,1),0,1.35,.55),at(cyl(.13,.2,.95,fur),0,1.75,.8,.6),at(sph(.2,dk,.8,.8,1.35),0,2.15,1.15),at(sph(.07,0x111111),0,2.08,1.5),at(sph(.2,bl,.9,.6,.8),0,1.9,.98),at(sph(.14,0xffffff,.7,1,.7),0,1.55,-.85),at(sph(.22,0xf1ead8,1,.9,.5),0,1.35,-.8));
+[-1,1].forEach(s=>{g.add(at(cyl(0,.07,.28,dk,5),s*.17,2.42,1.05,0,0,-s*.5),at(sph(.025,0x111111),s*.12,2.2,1.4));if(!rb&&tn>.5)g.add(at(cyl(.025,.04,.8,0xd8c9a8,5),s*.22,2.75,1,.2,0,-s*.5),at(cyl(.02,.03,.45,0xd8c9a8,5),s*.4,3.0,1.1,.5,0,-s*.2))});
+leg(g,-.24,1.0,.65,1.05,.09,dk,0);leg(g,.24,1.0,-.65,1.05,.09,dk,0);leg(g,.24,1.0,.65,1.05,.09,dk,Math.PI);leg(g,-.24,1.0,-.65,1.05,.09,dk,Math.PI)}
+g.position.set(x,0,z);g.hp=rb?1:3;g.rb=rb;g.v=new THREE.Vector3();g.mt=0;sc.add(g);return g}
+function mkWolf(x,z){const g=new THREE.Group();g.legs=[];const tn=R(.3,.6),f=new THREE.Color().setHSL(.6,.05,tn*.9).getHex(),d=0x34373b,lt=0xb9bcc0,eye=()=>new THREE.Mesh(new THREE.SphereGeometry(.035,6,6),new THREE.MeshBasicMaterial({color:0xffb020}));
+g.add(at(sph(.34,f,.9,.95,1.9),0,.85,0),at(sph(.32,d,1,1,1),0,.92,.5),at(sph(.3,lt,.7,.5,1.5),0,.65,.1),at(cyl(.12,.2,.5,f),0,1,.8,.8),at(sph(.21,f,.9,.9,1.2),0,1.1,1.05),at(cyl(.04,.11,.4,d,6),0,1.02,1.4,Math.PI/2),at(sph(.045,0x111111),0,1.05,1.62),
+at(cyl(.13,.02,.8,f,6),0,.8,-1,-1.1),at(cyl(.15,.03,.4,d,6),0,.66,-1.35,-1.1),at(cyl(0,.07,.22,d,4),-.11,1.36,.95),at(cyl(0,.07,.22,d,4),.11,1.36,.95),at(eye(),-.09,1.17,1.22),at(eye(),.09,1.17,1.22));
+leg(g,-.2,.7,.5,.7,.08,d,0);leg(g,.2,.7,-.5,.7,.08,d,0);leg(g,.2,.7,.5,.7,.08,d,Math.PI);leg(g,-.2,.7,-.5,.7,.08,d,Math.PI);
+g.position.set(x,0,z);g.hp=5;g.cd=0;sc.add(g);return g}
+const _u4=upd;upd=function(dt){_u4(dt);if(!S||S.over)return;
+ for(const a of [...deer,...wolves]){if(!a.legs)continue;const lp=a.lp||(a.lp=a.position.clone()),sp=Math.hypot(a.position.x-lp.x,a.position.z-lp.z)/Math.max(dt,.001);lp.copy(a.position);
+  a.ph=(a.ph||0)+dt*Math.min(16,sp*1.3);const amp=Math.min(.8,sp*.1);a.legs.forEach(l=>l.rotation.x=Math.sin(a.ph+l.ph)*amp)}
+ for(let i=flies.length-1;i>=0;i--){const f=flies[i];f.t+=dt/.3;f.m.position.lerpVectors(f.from,f.to,Math.min(1,f.t));if(f.t>=1)flies.splice(i,1)}};
+// ---- physical base building: aim at a glowing slot and place logs ----
+const siteObjs=[],ghosts=[],flies=[],surv=[],rc=new THREE.Raycaster();let shed=null;
+const gm=new THREE.MeshBasicMaterial({color:0x44ddff,transparent:true,opacity:.35,depthWrite:false});
+function buildSites(){siteObjs.forEach(o=>sc.remove(o));siteObjs.length=ghosts.length=flies.length=surv.length=0;
+ for(let i=LOCS.length-1;i>=0;i--)if(LOCS[i].mine)LOCS.splice(i,1);
+ const cx=-16,cz=14;for(let i=trees.length-1;i>=0;i--){const t=trees[i];if(Math.hypot(t.position.x-cx,t.position.z-cz)<10){sc.remove(t);trees.splice(i,1)}}
+ shed={cx,cz,left:16};
+ for(let c=0;c<4;c++)for(let s=0;s<4;s++){const y=.3+c*.5,ax=s<2,sg=s%2?1:-1,m=new THREE.Mesh(new THREE.CylinderGeometry(.25,.25,4.6,8),gm);m.rotation.set(ax?0:Math.PI/2,0,ax?Math.PI/2:0);m.position.set(cx+(ax?0:sg*2),y,cz+(ax?sg*2:0));sc.add(m);ghosts.push(m);siteObjs.push(m)}
+ LOCS.push({n:'Shed Blueprint',x:cx,z:cz,r:12,mine:1,seen:false});
+ [[-124,94,'a'],[-140,-92,'b']].forEach(a=>{const g=new THREE.Group();g.add(at(cyl(.28,.32,1.1,0x3a5a7a,8),0,1.05,0),at(sph(.2,0xe0b48a),0,1.85,0),at(cyl(.22,.26,.2,0x222222,8),0,2.05,0),at(cyl(.09,.09,.9,0x2a2a2a,6),-.12,.45,0),at(cyl(.09,.09,.9,0x2a2a2a,6),.12,.45,0));g.position.set(a[0],0,a[1]);g.rotation.y=R(0,6);g.id=a[2];sc.add(g);siteObjs.push(g);surv.push(g)})}
+function buildAct(){if(!ghosts.length)return false;if(window.VRRAY)rc.set(VRRAY.o,VRRAY.d);else rc.setFromCamera({x:0,y:0},cam);rc.far=9;const h=rc.intersectObjects(ghosts,false)[0];if(!h)return false;
+ if(S.inv.wood<1){say('Need wood to place a log.');return true}
+ S.inv.wood--;const g=h.object;ghosts.splice(ghosts.indexOf(g),1);sc.remove(g);
+ const m=new THREE.Mesh(g.geometry,S3(0x7a5230));m.castShadow=m.receiveShadow=true;m.rotation.copy(g.rotation);m.position.copy(cam.position);m.position.y-=.4;sc.add(m);siteObjs.push(m);
+ flies.push({m,from:m.position.clone(),to:g.position.clone(),t:0});shed.left--;
+ if(shed.left<=0){siteObjs.push(LB(shed.cx,2.4,shed.cz,5.4,.35,5.4,0x4a3018),LB(shed.cx,2.65,shed.cz,5.5,.2,5.5,SNW));const l=LOCS.find(l=>l.mine);if(l){l.n='Your Shed';l.zr=3.5}say('Shed complete! Stay inside to keep warm.')}
+ else say('Log placed. '+shed.left+' to go.');return true}
+function talk(){const s=surv.find(s=>Math.hypot(s.position.x-P.x,s.position.z-P.z)<4);if(!s)return false;
+ if(s.fed)say('Survivor: Wolves hate fire. The depot east of the lake is crawling with them.');
+ else if(S.inv.meat>0){S.inv.meat--;s.fed=1;if(s.id=='a'){S.inv.fuel+=2;say('Survivor: Thank you! Take two fuel cans.')}else{P.hp=Math.min(100,P.hp+30);S.inv.wood+=4;say('Survivor: Bless you. Bandages and firewood.')}}
+ else say('Survivor: Got any meat? I can trade supplies.');return true}
+const _sl=spawnLoot;spawnLoot=function(){_sl();buildSites()};
+// ---- minimap ----
+const mm=document.createElement('canvas');mm.width=mm.height=120;Object.assign(mm.style,{position:'fixed',right:'8px',top:'calc(env(safe-area-inset-top,0px) + 62px)',borderRadius:'8px',background:'rgba(10,18,28,.7)',pointerEvents:'none',width:'110px',height:'110px'});document.body.appendChild(mm);
+const _h3=hud;hud=function(){_h3();if(!S)return;const g=mm.getContext('2d'),k=.1,X=x=>60+x*k,Z=z=>60+z*k;g.clearRect(0,0,120,120);
+ for(const l of LOCS)if(l.seen){g.fillStyle=l.mine?'#44ddff':'#ffd27a';g.fillRect(X(l.x)-2,Z(l.z)-2,4,4)}
+ g.fillStyle='#4aa3ff';g.fillRect(X(car.position.x)-2,Z(car.position.z)-2,4,3);g.fillStyle='#e74c3c';g.save();g.translate(X(P.x),Z(P.z));g.rotate(-P.yaw);g.beginPath();g.moveTo(0,-5);g.lineTo(3,3);g.lineTo(-3,3);g.fill();g.restore()};
+// ---- extra houses ----
+const HOUSES=[];
+for(let i=0,n=0;i<400&&n<18;i++){const x=R(-WS+40,WS-40),z=R(-WS+40,WS-40);if(Math.hypot(x,z)<60||Math.abs(z-60)<14||LOCS.some(l=>Math.hypot(x-l.x,z-l.z)<l.r+16)||HOUSES.some(h=>Math.hypot(x-h.x,z-h.z)<30))continue;n++;
+ const c=[0x8a4a3a,0x5a7a8a,0x9a8a5a,0x6a5a4a][n%4],w=6+R(0,3);
+ LB(x,1.6,z-3,w,3.2,.3,c);LB(x-w/2,1.6,z,.3,3.2,6,c);LB(x+w/2,1.6,z,.3,3.2,6,c);LB(x,.08,z,w,.16,6,0x5a4028);LB(x,3.5,z,w+.8,.35,7,0x4a3018);LB(x,3.75,z,w+.9,.2,7.1,SNW);LB(x+w/2-1,4.6,z-1.5,.9,1.6,.9,0x6e6e72);
+ HOUSES.push({x,z});LOCS.push({n:'Abandoned House',x,z,r:9,zr:3.5})}
+// ---- vehicles: camper, plane, helicopter ----
+const VEHS=[];let VEH=null;
+function mkVeh(type,x,z){const g=new THREE.Group();g.type=type;
+ if(type=='camper'){g.name='Camper';g.max=70;g.f0=25;g.add(at(bx(2.5,2.3,5,0xe8e2d0),0,1.9,-.4),at(bx(2.3,1.3,2,0x3a6a8a),0,1.4,2.6),at(bx(2.2,.5,.1,0x1b2a38),0,1.9,3.65),at(bx(2.6,.2,5.2,SNW),0,3.1,-.4),at(bx(.1,.8,1.2,0x1b2a38),1.26,2.3,-.5),at(bx(.1,.8,1.2,0x1b2a38),-1.26,2.3,-.5),at(bx(2.5,.3,.3,0x333333),0,.7,3.6));
+  [[-1.1,2.3],[1.1,2.3],[-1.1,-2],[1.1,-2]].forEach(a=>g.add(at(cyl(.5,.5,.35,0x151515,12),a[0],.5,a[1],0,0,Math.PI/2)))}
+ else if(type=='plane'){g.name='Plane';g.max=60;g.f0=18;g.spd=0;g.lastVy=0;const pr=bx(.15,2.6,.2,0x222222);pr.position.set(0,1.3,3.7);g.prop=pr;g.pa='z';
+  g.add(at(cyl(.7,.5,7,0xd9d9d9,10),0,1.3,0,Math.PI/2),at(cyl(0,.7,1.4,0xd9534f,10),0,1.3,3.9,Math.PI/2),at(bx(12,.15,1.8,0xd9534f),0,1.7,.4),at(bx(.15,1.6,1.4,0xd9534f),0,2.2,-3.2),at(bx(4,.12,1.2,0xd9534f),0,1.4,-3.2),at(bx(1.3,.1,1.6,0x222a30),0,1.9,1.3),pr);
+  [[-1,.5],[1,.5],[0,-3]].forEach(a=>g.add(at(cyl(.28,.28,.2,0x151515,10),a[0]*1.1,.3,a[1],0,0,Math.PI/2)))}
+ else{g.name='Helicopter';g.max=50;g.f0=15;const rt=new THREE.Group();rt.position.set(0,2.9,0);rt.add(bx(9,.06,.35,0x333333),at(bx(.35,.06,9,0x333333),0,0,0));g.prop=rt;g.pa='y';
+  g.add(at(sph(1.2,0x2a6a3a,1,.9,1.7),0,1.4,0),at(bx(.5,.5,4.5,0x2a6a3a),0,1.7,-3.4),at(bx(.1,1.4,.7,0x2a6a3a),0,2.2,-5.4),at(bx(1.8,.8,1.2,0x1b2a38),0,1.7,1.4),at(cyl(.1,.1,.8,0x555555,6),0,2.5,0),at(bx(.1,.1,3,0x333333),-.9,.4,0),at(bx(.1,.1,3,0x333333),.9,.4,0),rt)}
+ g.position.set(x,0,z);g.home=new THREE.Vector3(x,0,z);g.fuel=g.f0;sc.add(g);VEHS.push(g);return g}
+mkVeh('camper',22,26);mkVeh('plane',60,-60);mkVeh('heli',-55,-50);
+LOCS.push({n:'Camper Van',x:22,z:26,r:9},{n:'Airstrip',x:60,z:-60,r:12},{n:'Helipad',x:-55,z:-50,r:10});
+function vehNear(r){let b=null,bd=r;for(const v of VEHS){const d=Math.hypot(v.position.x-P.x,v.position.z-P.z);if(d<bd){bd=d;b=v}}return b}
+function vehEnter(){const v=vehNear(9);if(!v)return false;VEH=v;say((v.fuel>0?'Boarded the ':'No fuel in the ')+v.name+'. Look to steer, push forward to go.'+(v.type=='heli'?' Look up/down to climb/descend.':v.type=='plane'?' Look up to take off.':''));return true}
+function vehExit(){const v=VEH;if(v.position.y>3){say('Too high to exit!');return}VEH=null;P.x=v.position.x+4;P.z=v.position.z;if(v.spd)v.spd=0;say('Left the '+v.name+'.')}
+function refuelVeh(){const v=vehNear(8);if(!v||S.inv.fuel<1||v.fuel>v.max-2)return false;S.inv.fuel--;v.fuel=Math.min(v.max,v.fuel+25);say(v.name+' refueled.');return true}
+const _sl2=spawnLoot;spawnLoot=function(){_sl2();HOUSES.forEach(h=>{crate(['food','wood','med','fuel'][(Math.random()*4)|0],h.x+R(-1.5,1.5),h.z+R(-1,2));if(Math.random()<.4)cans.push(mkCan(h.x+R(-2,2),h.z+1))});VEHS.forEach(v=>{v.position.copy(v.home);v.fuel=v.f0;v.spd=0;v.rotation.set(0,0,0)});VEH=null};
+const _u5=upd;upd=function(dt){_u5(dt);if(!S||S.over)return;
+ for(const v of VEHS)if(v.prop)v.prop.rotation[v.pa]+=dt*(v==VEH&&v.fuel>0?35:0);
+ if(!VEH)return;const v=VEH,ty=v.type,fw=Math.max(-1,Math.min(1,(K.w?1:0)-(K.s?1:0)-J.y)),sd=Math.max(-1,Math.min(1,(K.d?1:0)-(K.a?1:0)+J.x)),fx=-Math.sin(P.yaw),fz=-Math.cos(P.yaw),on=v.fuel>0;
+ if(ty=='camper'){const sp=on?(S.wx==2?9:15)*fw:0;let nx=v.position.x+fx*sp*dt,nz=v.position.z+fz*sp*dt;for(const t of trees)if(Math.hypot(t.position.x-nx,t.position.z-nz)<2.8){nx=v.position.x;nz=v.position.z;v.fuel-=dt*2;break}v.position.x=nx;v.position.z=nz;if(Math.abs(fw)>.1)v.fuel-=dt*.35;P.warm=Math.min(100,P.warm+(on?3:0)*dt)}
+ else if(ty=='plane'){const was=v.position.y,air=was>.2,tg=on?(air?(fw<0?16:36):(fw>0?40:0)):0;v.spd+=(tg-v.spd)*dt*.6;if(on)v.fuel-=dt*.25;let vy=0;if(v.spd>24&&on)vy=Math.max(-12,Math.min(14,P.pitch*20));else if(air)vy=-7;
+  v.position.y=Math.max(0,was+vy*dt);if(was>0&&v.position.y<=0&&vy<-9){P.hp-=25;say('Hard landing!')}v.position.x+=fx*v.spd*dt;v.position.z+=fz*v.spd*dt;v.rotation.z=air?-sd*.25:0}
+ else{let vy=-5;if(on){vy=Math.abs(P.pitch)>.15?Math.max(-6,Math.min(8,P.pitch*14)):0;v.fuel-=dt*.3;const rx=Math.cos(P.yaw),rz=-Math.sin(P.yaw);v.position.x+=(fx*fw+rx*sd)*14*dt;v.position.z+=(fz*fw+rz*sd)*14*dt}v.position.y=Math.max(0,v.position.y+vy*dt);v.rotation.x=on?-fw*.12:0}
+ v.fuel=Math.max(0,v.fuel);v.position.x=Math.max(-WS,Math.min(WS,v.position.x));v.position.z=Math.max(-WS,Math.min(WS,v.position.z));v.rotation.y=P.yaw+Math.PI;P.x=v.position.x;P.z=v.position.z;
+ const off={camper:2.2,plane:.6,heli:1.1}[ty],h={camper:2.6,plane:2.1,heli:1.9}[ty];cam.position.set(v.position.x+fx*off,v.position.y+h,v.position.z+fz*off);cam.rotation.set(P.pitch,P.yaw,0,'YXZ')};
+const _h4=hud;hud=function(){_h4();if(!S)return;const g=mm.getContext('2d'),k=.1;g.fillStyle='#8f8';for(const v of VEHS)g.fillRect(60+v.position.x*k-2,60+v.position.z*k-2,4,4);if(VEH)$('inv').innerHTML+='<br>'+VEH.name+' fuel '+Math.round(VEH.fuel)+(VEH.type!='camper'?' alt '+Math.round(VEH.position.y)+'m':'')};
+// ---- WebXR VR: swing to chop/build, rub hands for fire, hand to mouth to eat, grab the wheel ----
+rd.xr.enabled=true;const rig=new THREE.Group();sc.add(rig);rig.add(cam);
+const ctl=[0,1].map(i=>{const c=rd.xr.getController(i);c.userData={lp:new THREE.Vector3(),sp:0,dy:0,grip:false,trig:false,src:null,t:0,cd:0};c.addEventListener('connected',e=>c.userData.src=e.data);c.addEventListener('squeezestart',()=>c.userData.grip=true);c.addEventListener('squeezeend',()=>c.userData.grip=false);c.addEventListener('selectstart',()=>c.userData.trig=true);c.addEventListener('selectend',()=>c.userData.trig=false);c.add(new THREE.Mesh(new THREE.BoxGeometry(.04,.04,.12),new THREE.MeshBasicMaterial({color:0x44ddff})));rig.add(c);return c});
+const laser=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3(0,0,-9)]),new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:.5}));
+const hc=document.createElement('canvas');hc.width=256;hc.height=128;const hx=hc.getContext('2d'),ht=new THREE.CanvasTexture(hc),hp=new THREE.Mesh(new THREE.PlaneGeometry(.2,.1),new THREE.MeshBasicMaterial({map:ht,transparent:true}));hp.position.set(0,.06,.05);hp.rotation.x=-1;
+const wheel=new THREE.Group();{wheel.add(new THREE.Mesh(new THREE.TorusGeometry(.2,.02,8,20),M(0x222222)));for(let i=0;i<3;i++){const s=new THREE.Mesh(new THREE.BoxGeometry(.4,.02,.02),M(0x222222));s.rotation.z=i*Math.PI/3;wheel.add(s)}}wheel.position.set(0,1,-.5);wheel.rotation.x=-.5;wheel.visible=false;wheel.steer=0;rig.add(wheel);
+let snapOk=true,rub=0,vrWas=false,vrFr=0,hold=0,exWas=false;const tv=new THREE.Vector3(),tv2=new THREE.Vector3();
+const hand=h=>ctl.find(c=>c.userData.src&&c.userData.src.handedness==h),gp=c=>c&&c.userData.src&&c.userData.src.gamepad,dz=v=>Math.abs(v)<.15?0:v,angD=(a,b)=>((a-b+Math.PI*3)%(Math.PI*2))-Math.PI;
+function haptic(c){try{gp(c).hapticActuators[0].pulse(.7,80)}catch(e){}}
+function vrIn(dt){const L=hand('left'),Rr=hand('right'),la=gp(L)?gp(L).axes:[0,0,0,0],ra=gp(Rr)?gp(Rr).axes:[0,0,0,0];J.x=J.y=0;
+ const flying=VEH&&VEH.type!='camper',driving=P.inCar||(VEH&&VEH.type=='camper');
+ if(!flying&&!driving){J.x=dz(la[2]);J.y=dz(la[3])}
+ if(Math.abs(ra[2])>.7){if(snapOk&&!flying){P.yaw-=Math.sign(ra[2])*Math.PI/6;snapOk=false}}else snapOk=true;
+ if(flying){P.yaw-=dz(la[2])*dt*1.4;J.y=dz(la[3]);if(VEH.type=='heli')P.pitch=dz(-ra[3])*.6;else if(Rr){Rr.getWorldDirection(tv);P.pitch=Math.max(-1,Math.min(1,tv.y*1.2))}}
+ wheel.visible=!!driving;
+ if(driving){const tr=c=>gp(c)?gp(c).buttons[0].value:0;J.y=-(tr(Rr)-tr(L));let held=null;
+  for(const c of ctl)if(c.userData.grip){c.getWorldPosition(tv);wheel.worldToLocal(tv);if(tv.length()<.32){held=c;const a=Math.atan2(tv.y,tv.x);if(wheel.hand!==c){wheel.hand=c;wheel.a0=a;wheel.s0=wheel.steer}else wheel.steer=Math.max(-1.4,Math.min(1.4,wheel.s0+angD(a,wheel.a0)))}}
+  if(!held){wheel.hand=null;wheel.steer*=Math.max(0,1-dt*4)}wheel.rotation.z=wheel.steer;J.x=Math.max(-1,Math.min(1,-wheel.steer/1.2));if(VEH)P.yaw-=J.x*dt*1.2}}
+function vrPost(dt){const L=hand('left'),Rr=hand('right');
+ for(const c of ctl){const u=c.userData;u.sp=c.position.distanceTo(u.lp)/Math.max(dt,.001);u.dy=(c.position.y-u.lp.y)/Math.max(dt,.001);u.lp.copy(c.position);u.t-=dt;u.cd-=dt}
+ if(Rr){const u=Rr.userData;if(laser.parent!==Rr)Rr.add(laser);if(u.sp>2.2&&u.dy<-1.2&&u.cd<=0){u.cd=.6;const o=new THREE.Vector3(),d=new THREE.Vector3();Rr.getWorldPosition(o);Rr.getWorldDirection(d);d.negate();window.VRRAY={o,d};act();window.VRRAY=null;haptic(Rr)}}
+ if(L&&Rr&&!P.inCar&&!VEH){L.getWorldPosition(tv);Rr.getWorldPosition(tv2);if(tv.distanceTo(tv2)<.35&&L.userData.sp+Rr.userData.sp>1.6){rub+=dt;if(rub>2.2){rub=0;fire();haptic(L);haptic(Rr)}}else rub=Math.max(0,rub-dt)}
+ cam.getWorldPosition(tv2);for(const c of ctl){const u=c.userData;if(!u.grip||u.t>0)continue;c.getWorldPosition(tv);if(tv.distanceTo(tv2)<.28){u.t=1.5;(u.src&&u.src.handedness=='right')?eat():drink();haptic(c)}}
+ const seated=P.inCar||VEH;if(!seated&&L&&Rr&&L.userData.grip&&Rr.userData.grip&&tv.distanceTo(tv2)>.3){hold+=dt;if(hold>.8){hold=0;carT()}}else hold=0;
+ const ex=!!(gp(L)&&(gp(L).buttons[3]&&gp(L).buttons[3].pressed||gp(L).buttons[4]&&gp(L).buttons[4].pressed));if(ex&&!exWas&&seated)carT();exWas=ex;
+ if(L&&hp.parent!==L)L.add(hp);if(++vrFr%12==0){hx.clearRect(0,0,256,128);hx.fillStyle='rgba(10,18,28,.85)';hx.fillRect(0,0,256,128);hx.font='14px sans-serif';[['HP',P.hp,'#e74c3c'],['Warm',P.warm,'#e67e22'],['Food',P.hun,'#8bc34a'],['Water',P.thr,'#4fc3f7']].forEach((b,i)=>{hx.fillStyle='#fff';hx.fillText(b[0],8,22+i*20);hx.fillStyle=b[2];hx.fillRect(60,10+i*20,Math.max(0,b[1])*1.8,12)});hx.fillStyle='#fff';hx.font='12px sans-serif';hx.fillText('Wood '+S.inv.wood+'  Meat '+S.inv.meat+'  Fuel '+S.inv.fuel,8,100);hx.font='10px sans-serif';hx.fillText($('msg').textContent.slice(0,44),8,120);ht.needsUpdate=true}}
+const _u6=upd;upd=function(dt){const xr=rd.xr.isPresenting;
+ if(xr!==vrWas){vrWas=xr;sun.castShadow=!xr;if(!xr){rig.position.set(0,0,0);rig.rotation.y=0;wheel.visible=false;window.VRRAY=null}else say('VR: swing right hand down to chop/build, rub hands for fire, hand to mouth to eat.')}
+ if(xr&&S&&!S.over)vrIn(dt);_u6(dt);if(xr&&S){rig.position.set(P.x,VEH?VEH.position.y:0,P.z);rig.rotation.y=P.yaw;vrPost(dt)}};
+if(navigator.xr)navigator.xr.isSessionSupported('immersive-vr').then(ok=>{if(!ok)return;const b=document.createElement('button');b.textContent='Enter VR';Object.assign(b.style,{position:'fixed',left:'10px',bottom:'calc(env(safe-area-inset-bottom,0px) + 14px)',zIndex:6,padding:'12px 18px',borderRadius:'12px',border:'1px solid #5d7a94',background:'rgba(10,18,28,.85)',color:'#e8f0f7',fontWeight:'600'});document.body.appendChild(b);
+ b.onclick=async()=>{try{const s=await navigator.xr.requestSession('immersive-vr',{optionalFeatures:['local-floor','bounded-floor']});s.addEventListener('end',()=>{rd.setAnimationLoop(null);last=performance.now();requestAnimationFrame(loop)});await rd.xr.setSession(s);rd.setAnimationLoop(t=>loop(t))}catch(e){say('Could not start VR.')}}}).catch(()=>{});
+// snow particles
+const SN=1500,sg=new THREE.BufferGeometry(),sp=new Float32Array(SN*3);for(let i=0;i<SN;i++){sp[i*3]=R(-30,30);sp[i*3+1]=R(0,25);sp[i*3+2]=R(-30,30)}
+sg.setAttribute('position',new THREE.BufferAttribute(sp,3));const snow=new THREE.Points(sg,new THREE.PointsMaterial({color:0xffffff,size:.15}));sc.add(snow);
+function clr(){[...trees,...deer,...wolves,...fireMs,...cans,...crates].forEach(o=>sc.remove(o));trees.length=deer.length=wolves.length=fireMs.length=cans.length=crates.length=0}
+function init(){clr();
+ P={x:0,z:9,hp:100,hun:80,thr:80,warm:90,yaw:Math.PI,pitch:0,inCar:false};
+ S={t:0,over:false,wx:0,wt:20,mt:0,inv:{wood:3,meat:0,fuel:0},cf:20,ca:0};
+ car.position.set(9,0,8);S.ca=0;car.rotation.y=0;
+ fireMs.push(mkFire(0,5,60));
+ for(let i=0;i<450;i++){let x=R(-WS+10,WS-10),z=R(-WS+10,WS-10);if(Math.hypot(x,z)>18&&!inLoc(x,z))trees.push(mkTree(x,z))}
+ for(let i=0;i<40;i++)deer.push(mkDeer(R(-WS,WS),R(-WS,WS),i%2));
+ for(let i=0;i<10;i++){let a=R(0,6.3),d=R(70,320);wolves.push(mkWolf(Math.cos(a)*d,Math.sin(a)*d))}
+ for(let i=0;i<24;i++)cans.push(mkCan(R(-WS+20,WS-20),R(-WS+20,WS-20)));
+ spawnLoot();say('Find wood, build a fire, stay warm.')}
+function say(m){$('msg').textContent=m;S.mt=3.5}
+const K={},J={x:0,y:0,id:null,ox:0,oy:0},L={id:null,lx:0,ly:0};
+addEventListener('keydown',e=>{const k=e.key.toLowerCase();K[k]=1;({e:act,f:fire,'1':eat,'2':drink,r:carT})[k]?.()});addEventListener('keyup',e=>K[e.key.toLowerCase()]=0);
+const cv=rd.domElement;
+cv.addEventListener('touchstart',e=>{for(const t of e.changedTouches){if(t.clientX<innerWidth*.5&&J.id==null){J.id=t.identifier;J.ox=t.clientX;J.oy=t.clientY}else if(L.id==null){L.id=t.identifier;L.lx=t.clientX;L.ly=t.clientY}}});
+cv.addEventListener('touchmove',e=>{for(const t of e.changedTouches){if(t.identifier==J.id){const dx=t.clientX-J.ox,dy=t.clientY-J.oy,l=Math.max(Math.hypot(dx,dy),50);J.x=dx/l;J.y=dy/l}else if(t.identifier==L.id){P.yaw-=(t.clientX-L.lx)*.006;P.pitch=Math.max(-1.2,Math.min(1.2,P.pitch-(t.clientY-L.ly)*.005));L.lx=t.clientX;L.ly=t.clientY}}});
+const te=e=>{for(const t of e.changedTouches){if(t.identifier==J.id){J.id=null;J.x=J.y=0}if(t.identifier==L.id)L.id=null}};cv.addEventListener('touchend',te);cv.addEventListener('touchcancel',te);
+let md=false;cv.addEventListener('mousedown',()=>md=true);addEventListener('mouseup',()=>md=false);addEventListener('mousemove',e=>{if(md&&P){P.yaw-=e.movementX*.004;P.pitch=Math.max(-1.2,Math.min(1.2,P.pitch-e.movementY*.004))}});
+addEventListener('contextmenu',e=>e.preventDefault());
+[['bAct',act],['bFire',fire],['bEat',eat],['bDrink',drink],['bCar',carT]].forEach(([i,f])=>{const b=$(i);b.type='button';let lt=0;
+b.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();const n=performance.now();if(n-lt<120)return;lt=n;b.style.background='#3b5a78';if(S&&!S.over)f()});
+['pointerup','pointercancel','pointerleave'].forEach(v=>b.addEventListener(v,()=>b.style.background=''));
+['touchstart','touchend'].forEach(v=>b.addEventListener(v,e=>{e.stopPropagation()},{passive:true}))});
+const d2=(a,b)=>Math.hypot(a.position.x-b.position.x,a.position.z-b.position.z),dp=o=>Math.hypot(o.position.x-P.x,o.position.z-P.z);
+const nearFire=(x,z,r=12)=>fireMs.some(f=>f.fuel>0&&Math.hypot(f.position.x-x,f.position.z-z)<r),inCabin=()=>Math.abs(P.x)<5&&Math.abs(P.z)<4;
+function act(){if(P.inCar)return;
+ if(refuelVeh()||buildAct()||talk())return;
+ {const cr=crates.find(c=>dp(c)<3.2);if(cr){sc.remove(cr);crates.splice(crates.indexOf(cr),1);const k=cr.kind;
+  if(k=='food'){P.hun=Math.min(100,P.hun+30);return say('Canned rations. +30 food.')}
+  if(k=='wood'){S.inv.wood+=3;return say('Stacked firewood. +3 wood.')}
+  if(k=='med'){P.hp=Math.min(100,P.hp+30);return say('First aid kit. +30 health.')}
+  S.inv.fuel++;return say('Jerry can. +1 fuel.')}}
+ const c=cans.find(c=>dp(c)<3);if(c){sc.remove(c);cans.splice(cans.indexOf(c),1);S.inv.fuel++;return say('Picked up a fuel can.')}
+ if(dp(car)<5&&S.inv.fuel>0){S.inv.fuel--;S.cf=Math.min(60,S.cf+25);return say('Truck refueled.')}
+ const a=[...wolves,...deer].filter(o=>dp(o)<3.5).sort((a,b)=>dp(a)-dp(b))[0];
+ if(a){a.hp--;if(a.hp<=0){const w=wolves.includes(a);sc.remove(a);(w?wolves:deer).splice((w?wolves:deer).indexOf(a),1);S.inv.meat+=w?1:a.rb?1:2;say(w?'Wolf down.':'Game harvested.')}return}
+ const t=trees.find(t=>dp(t)<3);if(t){t.w--;S.inv.wood++;say('Chopped wood.');if(t.w<=0){sc.remove(t);trees.splice(trees.indexOf(t),1)}return}
+ const f=fireMs.find(f=>dp(f)<4);if(f&&S.inv.wood>0){S.inv.wood--;f.fuel=Math.min(100,f.fuel+30);return say('Fed the fire.')}
+ say('Nothing in reach.')}
+function fire(){if(P.inCar)return;if(S.inv.wood<2)return say('Need 2 wood.');S.inv.wood-=2;fireMs.push(mkFire(P.x+Math.sin(P.yaw)*-2.5,P.z+Math.cos(P.yaw)*-2.5,50));say('Campfire lit.')}
+function eat(){if(S.inv.meat<1)return say('No meat.');S.inv.meat--;if(nearFire(P.x,P.z)){P.hun=Math.min(100,P.hun+35);say('Cooked and ate meat.')}else{P.hun=Math.min(100,P.hun+18);P.hp-=8;say('Raw meat. Risky.')}}
+function drink(){if(nearFire(P.x,P.z)){P.thr=Math.min(100,P.thr+40);say('Melted snow and drank.')}else{P.thr=Math.min(100,P.thr+8);P.warm-=6;say('Cold snow chills you. Use a fire.')}}
+function carT(){if(VEH)return vehExit();if(!P.inCar&&vehEnter())return;if(P.inCar){P.inCar=false;P.x=car.position.x+3;P.z=car.position.z;return say('Left the truck.')}
+ if(dp(car)<6){P.inCar=true;if(S.cf<=0)say('No fuel. No heater.');else say('In the truck.')}}
+const fmt=s=>Math.floor(s/60)+'m '+(s%60)+'s';
+function upd(dt){if(S.over)return;S.t+=dt;
+ S.wt-=dt;if(S.wt<=0){S.wt=R(25,50);S.wx=Math.random()<.45?(Math.random()<.5?1:2):0;if(S.wx)say(S.wx==2?'A blizzard is rolling in!':'Snow is falling.')}
+ const night=S.t%240>150,mx=(K.d?1:0)-(K.a?1:0)+J.x,my=(K.s?1:0)-(K.w?1:0)+J.y,l=Math.min(1,Math.hypot(mx,my));
+ if(K.arrowleft)P.yaw+=dt*1.8;if(K.arrowright)P.yaw-=dt*1.8;
+ if(P.inCar){const c=car;if(S.cf>0){const th=-my,st=-mx;S.ca+=st*dt*1.6*Math.sign(th||0)*(Math.abs(th)>.1?1:0);
+   const sp=th*(S.wx==2?12:18);c.position.x+=Math.sin(S.ca)*sp*dt;c.position.z+=Math.cos(S.ca)*sp*dt;if(Math.abs(th)>.1)S.cf-=dt*.4;
+   for(const t of trees)if(d2(t,c)<2.2){S.cf-=dt*2;c.position.x-=Math.sin(S.ca)*sp*dt*1.3;c.position.z-=Math.cos(S.ca)*sp*dt*1.3}}
+  c.position.x=Math.max(-WS,Math.min(WS,c.position.x));c.position.z=Math.max(-WS,Math.min(WS,c.position.z));c.rotation.y=S.ca;P.x=c.position.x;P.z=c.position.z;P.yaw=S.ca+Math.PI;
+  P.warm=Math.min(100,P.warm+(S.cf>0?3:-.3)*dt);c.hl.intensity=night||S.wx==2?2:0}
+ else{const sp=(S.wx==2?3:4.2)*(P.hun<15?.7:1),fx=-Math.sin(P.yaw),fz=-Math.cos(P.yaw),rx=Math.cos(P.yaw),rz=-Math.sin(P.yaw);
+  P.x=Math.max(-WS,Math.min(WS,P.x+(fx*-my+rx*mx)*sp*dt));P.z=Math.max(-WS,Math.min(WS,P.z+(fz*-my+rz*mx)*sp*dt));
+  for(const t of trees){const dx=P.x-t.position.x,dz=P.z-t.position.z,d=Math.hypot(dx,dz);if(d<.9){P.x+=dx/d*(.9-d);P.z+=dz/d*(.9-d)}}
+  const cold=[.6,.9,1.8][S.wx]*(night?1.4:1),w=nearFire(P.x,P.z)?3.5:inCabin()?.9:0;P.warm=Math.max(0,Math.min(100,P.warm+(w-cold)*dt))}
+ P.hun=Math.max(0,P.hun-dt*.35);P.thr=Math.max(0,P.thr-dt*.5);
+ if(P.hun<=0||P.thr<=0)P.hp-=dt*1.5;if(P.warm<=0)P.hp-=dt*2.5;else if(P.warm>60&&P.hun>40&&P.thr>40)P.hp=Math.min(100,P.hp+dt*.8);
+ for(const f of fireMs){f.fuel-=dt*(S.wx==2?1.2:.6);const on=f.fuel>0;f.f.visible=on;f.pl.intensity=on?1.4+Math.sin(S.t*14)*.3:0;f.f.scale.y=1+Math.sin(S.t*12+f.position.x)*.25}
+ for(const d of deer){d.mt-=dt;const dd=dp(d);if(dd<28){const a=Math.atan2(d.position.z-P.z,d.position.x-P.x);d.v.set(Math.cos(a)*9,0,Math.sin(a)*9)}else if(d.mt<=0){d.mt=R(1,4);const a=R(0,6.3),s=Math.random()<.5?0:2;d.v.set(Math.cos(a)*s,0,Math.sin(a)*s)}
+  d.position.x=Math.max(-WS,Math.min(WS,d.position.x+d.v.x*dt));d.position.z=Math.max(-WS,Math.min(WS,d.position.z+d.v.z*dt));if(d.v.lengthSq()>.1)d.rotation.y=Math.atan2(d.v.x,d.v.z)}
+ for(const w of wolves){w.cd-=dt;const dd=dp(w),f=fireMs.find(f=>f.fuel>0&&d2(f,w)<14);let a=null,s=8;
+  if(f){a=Math.atan2(w.position.z-f.position.z,w.position.x-f.position.x)}else if(dd<(S.wx==2?55:42)){a=Math.atan2(P.z-w.position.z,P.x-w.position.x);s=dd>2?10:0;
+   if(dd<2.4&&w.cd<=0&&!inCabin()){w.cd=1.2;P.hp-=P.inCar?4:10;say('Wolf attack!')}}
+  if(a!=null){w.position.x+=Math.cos(a)*s*dt;w.position.z+=Math.sin(a)*s*dt;w.rotation.y=Math.atan2(Math.cos(a),Math.sin(a))}}
+ if(Math.random()<dt*.04&&wolves.length<9){const a=R(0,6.3);wolves.push(mkWolf(Math.max(-WS,Math.min(WS,P.x+Math.cos(a)*70)),Math.max(-WS,Math.min(WS,P.z+Math.sin(a)*70))))}
+ if(S.mt>0){S.mt-=dt;if(S.mt<=0)$('msg').textContent=''}
+ const sk=new THREE.Color(night?0x0b1424:S.wx==2?0xc8d2dc:S.wx?0xb8c8d8:0xa9c8e8);sc.background=sk;sc.fog=new THREE.FogExp2(sk,S.wx==2?.06:S.wx?.022:.012);sun.intensity=night?.15:.6;
+ const arr=sg.attributes.position.array,fall=S.wx==2?14:S.wx?5:0;snow.visible=!!S.wx;
+ if(S.wx){snow.position.set(P.x,0,P.z);for(let i=0;i<SN;i++){arr[i*3+1]-=fall*dt*(.6+i%3*.2);arr[i*3]+=(S.wx==2?10:1)*dt;if(arr[i*3+1]<0){arr[i*3+1]=25}if(arr[i*3]>30)arr[i*3]=-30}sg.attributes.position.needsUpdate=true}
+ cam.position.set(P.x,P.inCar?1.9:1.7,P.z);cam.rotation.set(P.pitch,P.yaw,0,'YXZ');
+ if(P.hp<=0){S.over=true;const m=Math.floor(S.t);best=Math.max(best,m);$('ov').style.display='flex';$('ov').querySelector('h1').textContent='YOU FROZE';
+  $('ov').querySelector('p').innerHTML='Survived <b>'+fmt(m)+'</b><br>Best: '+fmt(best)+(P.warm<=0?'<br>Hypothermia took you.':P.hun<=0?'<br>Starvation.':'<br>The wilderness won.');$('go').textContent='Try again'}}
+function hud(){const b=(n,v,c)=>'<div class="b">'+n+'<i style="width:'+Math.max(0,v)+'%;background:'+c+'"></i></div>';
+ $('hud').innerHTML=b('Health',P.hp,'#e74c3c')+b('Warmth',P.warm,P.warm<30?'#3498db':'#e67e22')+b('Food',P.hun,'#8bc34a')+b('Water',P.thr,'#4fc3f7');
+ $('inv').innerHTML='Wood '+S.inv.wood+' · Meat '+S.inv.meat+' · Fuel cans '+S.inv.fuel+' · Truck '+Math.max(0,Math.round(S.cf))+'L<br>'+fmt(Math.floor(S.t))+' · '+['Clear','Snowfall','BLIZZARD'][S.wx]+(S.t%240>150?' · Night':'')}
+let last=performance.now(),fr=0;
+function loop(n){const dt=Math.min(.05,(n-last)/1000);last=n;if($('ov').style.display==='none')upd(dt);if(++fr%6==0)hud();rd.render(sc,cam);if(!rd.xr.isPresenting)requestAnimationFrame(loop)}
+// ---- new main menu ----
+{const st=document.createElement('style');st.textContent='#ov{background:radial-gradient(ellipse at 50% 115%,#27486b,#070d14 68%)}#ov:before{content:"";position:absolute;inset:0;pointer-events:none;background-image:radial-gradient(2px 2px at 20px 30px,#fff9,transparent),radial-gradient(2px 2px at 90px 120px,#fff8,transparent),radial-gradient(1.5px 1.5px at 150px 60px,#fff7,transparent);background-size:180px 160px;animation:fl 7s linear infinite;opacity:.7}@keyframes fl{to{background-position:-60px 160px}}#ov>*{position:relative}#ov h1{font-size:clamp(26px,8vw,44px)}#seg{display:flex;gap:6px;margin-top:16px}#seg button{margin:0;padding:8px 14px;font-size:13px;background:#1b2d40;color:#cfe3f5;border:1px solid #3b5a78}#seg button.on{background:#cfe3f5;color:#0e1620}#ov button.g{background:transparent;color:#cfe3f5;border:1px solid #3b5a78;font-size:13px;padding:8px 22px;font-weight:500}#how{max-width:400px;font-size:13px;line-height:1.55;text-align:left;margin-top:14px;opacity:.9;background:#0a121c99;padding:10px 14px;border-radius:10px}#dd{font-size:12px!important;margin:10px 0 0;min-height:34px}';document.head.appendChild(st)}
+$('ov').innerHTML='<h1>THE WHITE SILENCE</h1><p id="tag">Civilization is gone. Winter is here.<br>How long can you survive?</p><div id="seg"><button data-d="story">Story</button><button data-d="survival" class="on">Survival</button><button data-d="hardcore">Hardcore</button></div><p id="dd"></p><button id="go">Begin</button><button id="hb" class="g">How to play</button><div id="how" hidden><b>Move:</b> left thumb. <b>Look:</b> drag right side.<br><b>ACT:</b> chop, hunt, grab fuel cans, refuel truck.<br><b>FIRE:</b> costs 2 wood. <b>EAT/DRINK:</b> do it near a fire to cook and melt snow.<br><b>VEHICLE:</b> enter or exit the truck; up/down drives, left/right steers.<br>Stay warm, keep fed, and keep wolves away from the fire line.</div>';
+const DF={story:{n:.55,c:.5,d:.6,w:4,t:'Story: more supplies, gentler cold and hunger.'},survival:{n:1,c:1,d:1,w:0,t:'Survival: realistic and demanding.'},hardcore:{n:1.6,c:1.5,d:1.5,w:-2,t:'Hardcore: brutal cold, fast hunger, little wood.'}};let dif='survival';
+function ddr(){$('dd').innerHTML=DF[dif].t+(best?'<br>Best: '+fmt(best):'')}ddr();
+const tap=(el,f)=>{let t=0;['pointerup','click'].forEach(v=>el.addEventListener(v,e=>{e.preventDefault();const n=performance.now();if(n-t<400)return;t=n;f()}))};
+document.querySelectorAll('#seg button').forEach(b=>tap(b,()=>{dif=b.dataset.d;document.querySelectorAll('#seg button').forEach(x=>x.classList.toggle('on',x===b));ddr()}));
+tap($('hb'),()=>{const h=$('how');h.hidden=!h.hidden;$('hb').textContent=h.hidden?'How to play':'Hide help'});
+const _u=upd;upd=function(dt){if(S.over)return _u(dt);const h=P.hun,t=P.thr,w=P.warm,hp=P.hp,f=DF[dif];_u(dt);
+if(P.hun<h)P.hun=Math.max(0,h-(h-P.hun)*f.n);if(P.thr<t)P.thr=Math.max(0,t-(t-P.thr)*f.n);if(P.warm<w)P.warm=Math.max(0,w-(w-P.warm)*f.c);if(P.hp<hp)P.hp=hp-(hp-P.hp)*f.d};
+let stT=0;const start=e=>{if(e)e.preventDefault();const n=performance.now();if(n-stT<500)return;stT=n;init();S.inv.wood=Math.max(0,S.inv.wood+DF[dif].w);if(dif==='story')S.inv.meat=2;$('ov').style.display='none'};
+['pointerup','click'].forEach(v=>$('go').addEventListener(v,start));addEventListener('keydown',e=>{if(e.key==='Enter'&&$('ov').style.display!=='none')start()});
+init();hud();$('ov').style.display='none';requestAnimationFrame(loop);
+</script></body></html>
